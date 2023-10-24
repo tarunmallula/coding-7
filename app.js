@@ -87,56 +87,49 @@ app.get("/matches/:matchId/", async (request, response) => {
 
 app.get("/players/:playerId/matches", async (request, response) => {
   const { playerId } = request.params;
-  const matchId = `
-        SELECT match_id
-        FROM player_match_score
-        WHERE player_id = '${playerId}';`;
-  const matchIdReq = await database.get(matchId);
-  const totalMatches = `
+  const getPlayerQuery = `
         SELECT *
-        FROM match_details
-        WHERE match_id = '${matchIdReq}'`;
-  const totalMatchesReq = await database.all(totalMatches);
-  response.send(totalMatchesReq.map((eachMatch) => convertMatch(eachMatch)));
+        FROM player_match_score
+        NATURAL JOIN match_details
+        WHERE player_id = ${playerId};`;
+  const getPlayerQueryRes = await database.all(getPlayerQuery);
+  response.send(getPlayerQueryRes.map((eachMatch) => convertMatch(eachMatch)));
 });
 
 app.get("/matches/:matchId/players", async (request, response) => {
   const { matchId } = request.params;
-  const playerId = `
-        SELECT player_id
-        FROM player_match_score
-        WHERE match_id = '${matchId}';`;
-  const playerIdReq = await database.get(playerId);
-  const totalPlayers = `
-        SELECT *
-        FROM player_details
-        WHERE player_id = '${playerIdReq}'`;
-  const totalPlayersReq = await database.all(totalPlayers);
-  response.send(totalPlayersReq.map((eachMatch) => convertPlayer(eachMatch)));
+  const getMatchPlayersQuery = `
+	    SELECT
+	      player_details.player_id AS playerId,
+	      player_details.player_name AS playerName
+	    FROM player_match_score NATURAL JOIN player_details
+        WHERE match_id=${matchId};`;
+  const getMatchPlayersRes = await database.all(getMatchPlayersQuery);
+  response.send(getMatchPlayersRes.map((eachMatch) => convertPlayer(eachMatch))
+  );
 });
 
 app.get("/players/:playerId/playerScores", async (request, response) => {
   const { playerId } = request.params;
-  const reqPlayer = `
-        SELECT *
-        FROM player_details
-        WHERE player_id = '${playerId}';`;
-  const reqPlayerRes = await database.get(reqPlayer);
-  const totalScore = `
-        SELECT 
-        SUM(score) AS totalScore,
-        SUM(fours) AS totalFours,
-        SUM(sixes) As totalSixes
-        FROM player_match_score
-        WHERE player_id = '${reqPlayerRes}'`;
-  const totalPlayersReq = await database.all(totalScore);
+  const getPlayerScored = `
+    SELECT
+    player_details.player_id AS playerId,
+    player_details.player_name AS playerName,
+    SUM(player_match_score.score) AS totalScore,
+    SUM(fours) AS totalFours,
+    SUM(sixes) AS totalSixes FROM 
+    player_details INNER JOIN player_match_score ON
+    player_details.player_id = player_match_score.player_id
+    WHERE player_details.player_id = ${playerId};`;
+  const respond = await database.get(getPlayerScored);
   response.send(`{
-      playerId:${reqPlayerRes.playerId},
-      playerName:${reqPlayerRes.playerName},
-      totalScore: ${totalPlayersReq.totalScore},
-      totalFours: ${totalPlayersReq.totalFours},
-      totalSixes: ${totalPlayersReq.totalSixes},
+      playerId:${respond.playerId},
+      playerName:${respond.playerName},
+      totalScore: ${respond.totalScore},
+      totalFours: ${respond.totalFours},
+      totalSixes: ${respond.totalSixes},
   }`);
 });
+
 
 module.exports = app;
